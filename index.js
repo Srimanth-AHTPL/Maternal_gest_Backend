@@ -641,6 +641,206 @@ app.get("/api/debug-cache", (req, res) => {
     console.log("🔍 Cache Debug Info:", cacheStatus);
     res.json(cacheStatus);
 });
+
+
+
+// =======================
+// 🏥 Get Unique Patient Addresses
+// =======================
+app.get("/api/patient-addresses", (req, res) => {
+    if (!unifiedCache.loaded) {
+        return res.status(503).json({
+            error: "Cache is still loading. Please wait...",
+            loading: true,
+        });
+    }
+
+    try {
+        // Extract unique addresses from patients data
+        const addresses = unifiedCache.patients
+            .map(p => p.ADDRESS)
+            .filter(address => address && address.trim() !== '') // Remove empty addresses
+            .filter((address, index, self) => self.indexOf(address) === index) // Get unique addresses
+            .sort(); // Sort alphabetically
+
+        // Add "All Locations" option
+        const addressOptions = [
+            { value: 'all', label: 'All Locations' },
+            ...addresses.map(address => ({
+                value: address,
+                label: address
+            }))
+        ];
+
+        console.log(`✅ Found ${addresses.length} unique patient addresses`);
+        
+        res.json({
+            success: true,
+            addresses: addressOptions
+        });
+    } catch (err) {
+        console.error("❌ Error fetching patient addresses:", err);
+        res.status(500).json({
+            success: false,
+            error: "Failed to fetch patient addresses"
+        });
+    }
+});
+
+// =======================
+// 🏥 Get Filtered Home Summary by Address
+// =======================
+app.get("/api/home-summary-filtered", (req, res) => {
+    const address = req.query.address;
+    
+    if (!unifiedCache.loaded) {
+        return res.status(503).json({
+            error: "Cache is still loading. Please wait...",
+            loading: true,
+        });
+    }
+
+    try {
+        let filteredPatients = unifiedCache.patients;
+        let filteredVisits = unifiedCache.visits;
+        let filteredDeliveries = unifiedCache.deliveries;
+        let filteredBabies = unifiedCache.babies;
+
+        // Filter by address if provided and not 'all'
+        if (address && address !== 'all') {
+            filteredPatients = unifiedCache.patients.filter(p => 
+                p.ADDRESS && p.ADDRESS === address
+            );
+            
+            const filteredPatientIds = filteredPatients.map(p => p.PATIENT_ID);
+            
+            filteredVisits = unifiedCache.visits.filter(v => 
+                filteredPatientIds.includes(v.PATIENT_ID)
+            );
+            filteredDeliveries = unifiedCache.deliveries.filter(d => 
+                filteredPatientIds.includes(d.PATIENT_ID)
+            );
+            filteredBabies = unifiedCache.babies.filter(b => 
+                filteredPatientIds.includes(b.PATIENT_ID)
+            );
+        }
+
+        // Calculate metrics with filtered data
+        const hospitalPatients = filteredPatients || [];
+        const ongoingPatients = unifiedCacheOngoing.patients || []; // Ongoing patients remain unfiltered for now
+        const deliveries = filteredDeliveries || [];
+        const babies = filteredBabies || [];
+        const hospitalVisits = filteredVisits || [];
+        const ongoingVisits = unifiedCacheOngoing.visits || [];
+
+        // Your existing calculation logic here...
+        const totalHospitalPatients = hospitalPatients.length;
+        const totalOngoingPatients = ongoingPatients.length;
+        const totalPatients = totalHospitalPatients + totalOngoingPatients;
+        
+        // Calculate delivery types
+        let normalDeliveryCount = 0;
+        let cSectionDeliveryCount = 0;
+        
+        deliveries.forEach(delivery => {
+            const mode = delivery.DELIVERY_MODE?.toLowerCase();
+            if (mode) {
+                if (mode.includes('vaginal') || mode.includes('normal')) {
+                    normalDeliveryCount++;
+                } else if (mode.includes('c-section') || mode.includes('cesarean') || mode.includes('c_section')) {
+                    cSectionDeliveryCount++;
+                }
+            }
+        });
+        
+        const totalDeliveries = normalDeliveryCount + cSectionDeliveryCount;
+        const totalBabies = babies.length;
+        
+        // Calculate today's appointments
+        const today = new Date().toDateString();
+        const todaysAppointments = 
+            hospitalVisits.filter(v => v.VISIT_DATE && new Date(v.VISIT_DATE).toDateString() === today).length +
+            ongoingVisits.filter(v => v.VISIT_DATE && new Date(v.VISIT_DATE).toDateString() === today).length;
+        
+        // Calculate delivery types from babies data
+        let maturedCount = 0;
+        let prematureCount = 0;
+        let mortalityCount = 0;
+
+        babies.forEach(baby => {
+            if (baby.SOURCE_SCHEMA === 'MATURED') {
+                maturedCount++;
+            } else if (baby.SOURCE_SCHEMA === 'PREMATURE') {
+                prematureCount++;
+            } 
+        });
+
+        hospitalPatients.forEach(patient => {
+            if (patient.SOURCE_SCHEMA === 'MORTALITY') {
+                mortalityCount++;
+            }
+        });
+
+        const totalBabiesWithType = maturedCount + prematureCount + mortalityCount;
+        const maturedRate = totalBabiesWithType > 0 ? Math.round((maturedCount / totalBabiesWithType) * 100) : 0;
+        const prematureRate = totalBabiesWithType > 0 ? Math.round((prematureCount / totalBabiesWithType) * 100) : 0;
+        const mortalityRate = totalBabiesWithType > 0 ? Math.round((mortalityCount / totalBabiesWithType) * 100) : 0;
+
+        const summary = {
+            success: true,
+            // Core Metrics
+            totalPatients: totalPatients,
+            activePregnancies: totalOngoingPatients,
+            historicalPatients: totalHospitalPatients,
+            
+            // Delivery Analytics
+            normalDeliveryCount: normalDeliveryCount,
+            cSectionDeliveryCount: cSectionDeliveryCount,
+            totalDeliveries: totalDeliveries,
+            totalBabies: totalBabies,
+            
+            // Daily Operations
+            todaysAppointments: todaysAppointments,
+            
+            // Calculated Ratios
+            normalDeliveryRate: totalDeliveries > 0 ? Math.round((normalDeliveryCount / totalDeliveries) * 100) : 0,
+            cSectionRate: totalDeliveries > 0 ? Math.round((cSectionDeliveryCount / totalDeliveries) * 100) : 0,
+
+            // Delivery Types
+            deliveryTypes: {
+                matured: maturedRate,
+                premature: prematureRate,
+                mortality: mortalityRate,
+                maturedCount: maturedCount,
+                prematureCount: prematureCount,
+                mortalityCount: mortalityCount
+            },
+
+            // Filter info
+            filter: {
+                address: address,
+                patientCount: hospitalPatients.length
+            }
+        };
+
+        console.log(`✅ Filtered Home Summary: ${hospitalPatients.length} patients for address "${address}"`);
+        res.json(summary);
+        
+    } catch (err) {
+        console.error("❌ Error in /api/home-summary-filtered:", err.message);
+        res.status(500).json({ 
+            success: false,
+            error: "Failed to generate filtered summary",
+            details: err.message 
+        });
+    }
+});
+
+
+
+
+
+
 // Start server
 app.listen(port, () => {
     console.log(`🚀 Server running at http://localhost:${port}`);
