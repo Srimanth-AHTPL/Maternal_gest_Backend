@@ -71,7 +71,7 @@ Provide:
 `;
 
         // ⭐️ We will fix this model name after the debugging code runs
-        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
         const result = await model.generateContent(prompt);
         const text = result?.response?.text?.() || "⚠️ No response from Gemini.";
 
@@ -122,7 +122,7 @@ ${visitSummary}
 `;
 
         // ⭐️ We will fix this model name after the debugging code runs
-        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
         const result = await model.generateContent(prompt);
         const text = result?.response?.text?.() || "⚠️ No AI response.";
 
@@ -221,7 +221,7 @@ Tip: Stay hydrated and include citrus fruits for iron absorption. and dont say o
 `;
 
         // ⭐️ We will fix this model name after the debugging code runs
-        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
         const result = await model.generateContent(prompt);
         const text = result?.response?.text?.() || "⚠️ No AI response";
 
@@ -275,7 +275,7 @@ Tip: Consistency > intensity. Gentle movement helps reduce swelling & improve sl
 `;
 
         // ⭐️ We will fix this model name after the debugging code runs
-        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
         const result = await model.generateContent(prompt);
         const text = result?.response?.text?.() || "⚠️ No AI response";
 
