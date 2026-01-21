@@ -115,7 +115,7 @@ async function loadOngoingData() {
         // ⭐️ Make sure these table names match your Snowflake
         const [visits, patients] = await Promise.all([
                 runQuery(`
-                    SELECT *
+                    SELECT t1.*
                     FROM UNIFIED_VISITS_TABLE AS t1
                     LEFT JOIN UNIFIED_DELIVERY_TABLE AS t2
                     ON t1.patient_id = t2.patient_id
@@ -123,7 +123,7 @@ async function loadOngoingData() {
                 `),
 
                 runQuery(`
-                    SELECT *
+                    SELECT t1.*
                     FROM UNIFIED_PATIENTS_TABLE AS t1
                     LEFT JOIN UNIFIED_DELIVERY_TABLE AS t2
                     ON t1.patient_id = t2.patient_id
