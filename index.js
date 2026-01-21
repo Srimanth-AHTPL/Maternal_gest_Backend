@@ -79,10 +79,10 @@ async function loadAllData() {
         const startTime = Date.now();
         // ⭐️ Make sure these view names match your Snowflake
         const [visits, patients, deliveries, babies] = await Promise.all([
-            runQuery("SELECT * FROM HEAL.HOSPITAL_VIEW.unified_visits_view"),
-            runQuery("SELECT * FROM HEAL.HOSPITAL_VIEW.unified_patients_view"),
-            runQuery("SELECT * FROM HEAL.HOSPITAL_VIEW.unified_deliveries_view"),
-            runQuery("SELECT * FROM HEAL.HOSPITAL_VIEW.unified_baby_view"),
+            runQuery("SELECT * FROM HEAL.HOSPITAL_TABLE.unified_visits_table"),
+            runQuery("SELECT * FROM HEAL.HOSPITAL_TABLE.unified_patients_table"),
+            runQuery("SELECT * FROM HEAL.HOSPITAL_TABLE.UNIFIED_DELIVERY_TABLE"),
+            runQuery("SELECT * FROM HEAL.HOSPITAL_TABLE.unified_baby_table"),
         ]);
 
         unifiedCache.visits = visits || [];
@@ -92,7 +92,7 @@ async function loadAllData() {
         unifiedCache.loaded = true;
 
         console.log(
-            `✅ Main Cache Loaded: ${unifiedCache.patients.length} patients, ${unifiedCache.deliveries.length} deliveries`
+            `✅ Main Cache Loaded: ${unifiedCache.patients.length} patients, ${unifiedCache.deliveries.length} deliveries ${unifiedCache.visits.length} visits`
         );
     } catch (err) {
         console.error("❌ Error loading main cache:", err);
@@ -114,9 +114,22 @@ async function loadOngoingData() {
         const startTime = Date.now();
         // ⭐️ Make sure these table names match your Snowflake
         const [visits, patients] = await Promise.all([
-            runQuery("SELECT * FROM HEAL.ONGOING.UNIFIED_VISITS_TABLE"),
-            runQuery("SELECT * FROM HEAL.ONGOING.UNIFIED_PATIENTS_TABLE"),
-        ]);
+                runQuery(`
+                    SELECT *
+                    FROM UNIFIED_VISITS_TABLE AS t1
+                    LEFT JOIN UNIFIED_DELIVERY_TABLE AS t2
+                    ON t1.patient_id = t2.patient_id
+                    WHERE t2.patient_id IS NULL
+                `),
+
+                runQuery(`
+                    SELECT *
+                    FROM UNIFIED_PATIENTS_TABLE AS t1
+                    LEFT JOIN UNIFIED_DELIVERY_TABLE AS t2
+                    ON t1.patient_id = t2.patient_id
+                    WHERE t2.patient_id IS NULL
+                `)
+                ]);
 
         unifiedCacheOngoing.visits = visits || [];
         unifiedCacheOngoing.patients = patients || [];
